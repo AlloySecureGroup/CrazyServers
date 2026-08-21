@@ -2,8 +2,6 @@
 
 A zero-dependency Python server that generates believable ASP.NET Core-style failures for development, testing, research, screenshots, log viewers, and error-state simulation.
 
-## Why this version is more plausible
-
 The output follows a normal backend architecture instead of filling every line with nonsense:
 
 ```text
