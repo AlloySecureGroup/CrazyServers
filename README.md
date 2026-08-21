@@ -1,29 +1,31 @@
-# Crazy Fake Server
+# ASP.NET Core Error Simulation Server
 
-A zero-dependency Python fake server that produces:
+A zero-dependency Python server that generates believable ASP.NET Core-style failures for development, testing, research, screenshots, log viewers, and error-state simulation.
 
-- multilingual Unicode nonsense
-- fake C#/.NET stack traces
-- fake inner exceptions and HRESULTs
-- fake async `MoveNext()` stack frames
-- fake ASP.NET-style developer exception pages
-- JSON error endpoints
-- Zalgo, runes, emoji, cursed file paths, fake CLR diagnostics, and general reality failure
+## Why this version is more plausible
 
-It is intended for local development, screenshots, UI testing, error-state demos, terminal chaos, and harmless joke environments.
+The output follows a normal backend architecture instead of filling every line with nonsense:
 
-> **Important:** this is not a real .NET or ASP.NET application. The diagnostics are fictional. The HTML page deliberately labels itself as fake.
+```text
+Northwind.Store.Api.Controllers.OrdersController
+Northwind.Store.Application.Services.OrderService
+Northwind.Store.Infrastructure.Persistence.OrderRepository
+Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(...)
+Microsoft.Data.SqlClient.SqlCommand.ExecuteDbDataReaderAsync(...)
+Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker...
+Microsoft.AspNetCore.Authorization.AuthorizationMiddleware...
+```
+
+The old absurdity is now optional. `--chaos 1-7` stays mostly realistic; only `8-10` occasionally leaks a weird token into a message.
 
 ## Requirements
 
-Python 3.10+ is recommended.
+Python 3.10+ recommended. No third-party packages.
 
-No third-party packages are required.
-
-## Start the server
+## Start
 
 ```bash
-python crazy_server.py
+python fake_dotnet_server.py
 ```
 
 Default address:
@@ -32,316 +34,337 @@ Default address:
 http://127.0.0.1:8000
 ```
 
-The default `/` response is plain-text multilingual nonsense.
-
-## ASP.NET-style mode
-
-Use `--dotnet` to make `/`, `/stack`, and `/exception` render a fake ASP.NET-style developer exception page:
+## ASP.NET-style page
 
 ```bash
-python crazy_server.py --dotnet
+python fake_dotnet_server.py --dotnet
 ```
 
-Then open:
+Visit:
 
 ```text
 http://127.0.0.1:8000/
 ```
 
-Every request generates a fresh fictional exception, stack, trace identifier, fake request diagnostics, and Unicode corruption.
+The page shows a developer exception with a realistic application stack, ASP.NET Core middleware, trace IDs, query parameters, headers, and scenario-specific diagnostics.
 
-## Maximum chaos
+Authorization and Cookie headers are redacted.
 
-```bash
-python crazy_server.py --dotnet --chaos 10
-```
+## Profiles
 
-Chaos ranges from `1` to `10`.
-
-Roughly:
-
-- `1-3`: strange
-- `4-6`: cursed
-- `7-8`: CLR reality degradation
-- `9-10`: Unicode catastrophe
-
-## Custom port
-
-```bash
-python crazy_server.py --dotnet --port 5050
-```
-
-Then visit:
+Choose the type of application:
 
 ```text
-http://127.0.0.1:5050/
+commerce
+payments
+identity
+saas
 ```
 
-## Custom status code
-
-The generated error endpoints return HTTP 500 by default.
-
-Change that with:
+Examples:
 
 ```bash
-python crazy_server.py --dotnet --status 503
+python fake_dotnet_server.py --dotnet --profile commerce
+python fake_dotnet_server.py --dotnet --profile payments
+python fake_dotnet_server.py --dotnet --profile identity
+python fake_dotnet_server.py --dotnet --profile saas
 ```
 
-Or, naturally:
+Profiles change the namespaces and application layers. For example, the payments profile uses names like:
+
+```text
+Contoso.Payments.Api.Controllers.PaymentsController
+Contoso.Payments.Application.Services.PaymentService
+Contoso.Payments.Infrastructure.Persistence.PaymentRepository
+```
+
+## Failure scenarios
+
+Available:
+
+```text
+random
+ef
+sql
+http
+auth
+validation
+redis
+startup
+timeout
+nullref
+```
+
+### Entity Framework
 
 ```bash
-python crazy_server.py --dotnet --status 418
+python fake_dotnet_server.py --dotnet --scenario ef
 ```
 
-## Deterministic runs
+Possible shape:
 
-Use a seed if you want generated output to be reproducible:
+```text
+Microsoft.EntityFrameworkCore.DbUpdateException:
+An error occurred while saving the entity changes.
+
+ ---> Microsoft.Data.SqlClient.SqlException:
+Violation of UNIQUE KEY constraint 'UX_Orders_ExternalId'.
+```
+
+### SQL Server
 
 ```bash
-python crazy_server.py --dotnet --chaos 10 --seed 42
+python fake_dotnet_server.py --dotnet --scenario sql
 ```
 
-Requests still vary from one another, but the sequence is deterministic for the same seed and request order.
+Generated SQL errors can include realistic categories such as duplicate keys, foreign-key failures, deadlock victims, and command timeouts.
+
+### HttpClient / downstream service
+
+```bash
+python fake_dotnet_server.py --dotnet --scenario http --status 503
+```
+
+The generated page may show a dependency like:
+
+```text
+https://inventory.internal/api/v1/reservations
+```
+
+### Redis
+
+```bash
+python fake_dotnet_server.py --dotnet --scenario redis
+```
+
+Example:
+
+```text
+StackExchange.Redis.RedisTimeoutException:
+Timeout awaiting response (outbound=0KiB, inbound=0KiB, 5000ms elapsed).
+```
+
+### Authentication
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --scenario auth \
+  --respect-scenario-status
+```
+
+This can return 401 or 403 instead of forcing the default 500.
+
+### Validation
+
+```bash
+python fake_dotnet_server.py \
+  --scenario validation \
+  --respect-scenario-status
+```
+
+Returns 400.
+
+### Dependency injection / startup
+
+```bash
+python fake_dotnet_server.py --dotnet --scenario startup
+```
+
+Example:
+
+```text
+System.InvalidOperationException:
+Unable to resolve service for type
+'Northwind.Store.Infrastructure.IClock'
+while attempting to activate
+'Northwind.Store.Api.Controllers.OrdersController'.
+```
 
 ## Endpoints
 
 ### `/`
 
-Main output.
-
-Without `--dotnet`, returns a nonsense sentence.
-
-With `--dotnet`, returns the fake ASP.NET-style exception page.
-
-### `/health`
-
-Always returns HTTP 200 with a small JSON health response:
-
-```json
-{
-  "ok": true,
-  "fake": true,
-  "mode": "dotnet",
-  "chaos": 10
-}
-```
+Main generated error. HTML when `--dotnet` is enabled, plain text otherwise.
 
 ### `/stack`
 
-Returns a generated fake .NET stack trace.
-
-With `--dotnet`, it renders as the fake developer exception page.
+Generated stack trace.
 
 ### `/exception`
 
-Same general behavior as `/stack`.
+Generated exception and stack trace.
 
 ### `/api/error`
 
-Returns a fake ProblemDetails-ish JSON error response:
+ProblemDetails-style JSON:
 
 ```json
 {
-  "title": "An absurd fake server error occurred.",
+  "type": "https://httpstatuses.com/500",
+  "title": "An unexpected error occurred.",
   "status": 500,
-  "type": "System.PotatoSerializationException",
-  "detail": "Object reference not set to an instance of a potato.",
-  "traceId": "00-...",
-  "hresult": "0xDEADBEEF",
-  "stackTrace": "   at ...",
-  "nonsense": "..."
+  "detail": "Execution Timeout Expired.",
+  "instance": "/api/error",
+  "traceId": "00-..."
 }
 ```
 
-### `/api/nonsense`
+To include the generated exception and stack trace:
 
-Returns generated nonsense as JSON.
+```bash
+python fake_dotnet_server.py --include-stack-json
+```
 
-One result:
+### `/health`
+
+Healthy JSON response:
+
+```json
+{
+  "status": "Healthy",
+  "service": "Store API",
+  "environment": "Development",
+  "version": "1.14.3"
+}
+```
+
+### `/api/scenario`
+
+Shows the active profile and generated scenario.
+
+## Recommended commands
+
+Believable commerce/EF failure:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --profile commerce \
+  --scenario ef
+```
+
+Payments API with a downstream outage:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --profile payments \
+  --scenario http \
+  --status 503
+```
+
+Identity API auth failure:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --profile identity \
+  --scenario auth \
+  --respect-scenario-status
+```
+
+SaaS application Redis timeout:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --profile saas \
+  --scenario redis
+```
+
+A randomized backend:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --profile commerce \
+  --scenario random
+```
+
+## Optional weirdness
+
+Default:
 
 ```text
-/api/nonsense
+--chaos 2
 ```
 
-Twenty results:
+`1-7` stays essentially realistic.
+
+At `8-10`, a small amount of the original Unicode weirdness can leak into exception messages:
+
+```bash
+python fake_dotnet_server.py \
+  --dotnet \
+  --scenario ef \
+  --chaos 10
+```
+
+The stack itself remains structured as a plausible .NET stack.
+
+## Status codes
+
+Errors return 500 by default:
+
+```bash
+python fake_dotnet_server.py --status 503
+```
+
+To allow auth and validation scenarios to pick sensible statuses:
+
+```bash
+python fake_dotnet_server.py --respect-scenario-status
+```
+
+This enables:
 
 ```text
-/api/nonsense?count=20
+validation -> 400
+auth       -> 401 or 403
+most others -> 500
 ```
 
-The maximum per request is 100.
-
-### `/teapot`
-
-Always returns HTTP `418`.
-
-Obviously.
-
-## Example curl commands
-
-Plain error:
+## CLI
 
 ```bash
-curl http://127.0.0.1:8000/stack
+python fake_dotnet_server.py --help
 ```
 
-JSON error:
-
-```bash
-curl http://127.0.0.1:8000/api/error
-```
-
-Lots of nonsense:
-
-```bash
-curl "http://127.0.0.1:8000/api/nonsense?count=10"
-```
-
-Send a fake POST request to the ASP.NET-style page:
-
-```bash
-curl -i -X POST \
-  -H "X-Correlation-ID: BANANA-𓆏-9001" \
-  -H "Authorization: definitely-not-a-real-token" \
-  "http://127.0.0.1:8000/exception?cheese=forbidden&moon=3"
-```
-
-The server does not execute the body or authenticate anything. It simply generates a response.
-
-## All command-line options
-
-```bash
-python crazy_server.py --help
-```
-
-Options:
+Main options:
 
 ```text
---host HOST
-    Bind address. Default: 127.0.0.1
-
---port PORT
-    TCP port. Default: 8000
-
--c, --chaos N
-    Chaos level from 1 to 10.
-
 --dotnet
-    Enable fake ASP.NET-style HTML error pages.
-
+--profile {commerce,payments,identity,saas}
+--scenario {random,ef,sql,http,auth,validation,redis,startup,timeout,nullref}
 --status STATUS
-    HTTP status for generated error endpoints.
-    Default: 500.
-
+--respect-scenario-status
+--include-stack-json
+--chaos 1-10
+--version VERSION
+--host HOST
+--port PORT
 --seed SEED
-    Deterministic random seed.
 ```
 
-## Binding to your LAN
+## LAN use
 
-By default the program binds only to loopback:
+The default is loopback only:
 
 ```text
 127.0.0.1
 ```
 
-That is the recommended mode.
-
-If you intentionally want another device on your local network to reach it:
+For deliberate LAN testing:
 
 ```bash
-python crazy_server.py --host 0.0.0.0 --port 8000 --dotnet
+python fake_dotnet_server.py --host 0.0.0.0 --dotnet
 ```
 
-The program will print a warning because it has no authentication and is designed as a fake development server, not a production web service.
-
-Do not expose it directly to the public internet.
-
-## What `--dotnet` changes
-
-Normal mode:
+## Files
 
 ```text
-GET /
-    -> plain Unicode nonsense
-
-GET /stack
-    -> fake .NET exception as text
-```
-
-With `--dotnet`:
-
-```text
-GET /
-    -> HTML developer exception page
-
-GET /stack
-    -> HTML developer exception page
-
-GET /exception
-    -> HTML developer exception page
-```
-
-The page contains fictional versions of:
-
-- exception type
-- exception message
-- stack frames
-- async state-machine frames
-- source file paths
-- inner exceptions
-- HRESULT
-- ASP.NET Core-looking middleware frames
-- trace identifier
-- request method
-- request path
-- query parameters
-- request headers
-- fake CLR diagnostics
-- Unicode nonsense
-
-It is stylistically reminiscent of a development exception screen without copying a real framework page verbatim.
-
-## Example fake output
-
-```text
-Unhandled exception. System.PotatoSerializationException:
-Object reference not set to an instance of a potato.
-
-   at Potato.Serialization.GrandmotherSerializer[TPotato].Deserialize(
-       Potato potato, Int32 moonCount
-   ) in C:\Reality\Production\Potato\Serialization\GrandmotherSerializer.cs:line 666
-
-   at Goblin.Interop.OrbContext.<SummonGoblinAsync>d__13.MoveNext()
-       in D:\build\agent\_work\13\s\Goblin\Interop\OrbContext.cs:line 420
-
- ---> System.NonEuclideanGeometryException:
- Sequence contains more than one moon.
-
-   at NonEuclidean.Geometry.MoonController.ValidateReality(...)
-   --- End of inner exception stack trace ---
-
-HRESULT: 0xDEADBEEF
-```
-
-At chaos 10, expect substantially less cooperation from reality.
-
-## Project structure
-
-```text
-crazy_fake_server/
-├── crazy_server.py
+plausible_dotnet_fake_server/
+├── fake_dotnet_server.py
 └── README.md
 ```
-
-## Stop the server
-
-Press:
-
-```text
-Ctrl+C
-```
-
-## License
-
-Do whatever you want with it for harmless development, demos, testing, and comedy.
