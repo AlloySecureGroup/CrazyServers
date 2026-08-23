@@ -1,151 +1,476 @@
-At dusk, the city folded its avenues inward.
+# `/city`
 
-Every window contained another window, every alley narrowed into a smaller alley, and every clocktower kept beneath its largest clock a second clock whose hands moved around a painted city where, at dusk, the avenues folded inward.
+> A repository for a city that contains the repository that describes the city.
 
-Alice noticed this only after the white stones began spelling words beneath her shoes.
+`/city` is an experimental codebase for constructing a simulated city whose streets are generated from its documentation, while the documentation is generated from observations of the simulated city.
 
-NOT A ROAD, they said.
+The project is considered successfully installed when you discover that the installation instructions describe the state produced by following the installation instructions.
 
-Then, several steps later:
+---
 
-ONLY THE MEMORY OF A ROAD.
+## Overview
 
-Then, in letters so small she had to kneel:
+At first glance, `/city` appears to contain a small procedural city generator.
 
-whose stones remember a girl reading the words NOT A ROAD beneath her shoes while somewhere above her another girl kneels to read these.
+```text
+city/
+├── README.md
+├── map/
+│   └── city.json
+├── src/
+│   ├── city.ts
+│   ├── reader.ts
+│   └── README.md
+└── exit/
+    └── entrance
+```
 
-She stood quickly.
+This representation is incomplete.
 
-Across the square, merchants were selling bottled afternoons, left-handed shadows, maps of rooms that had not yet been entered, and tiny brass keys labeled with the names of doors larger than the city itself.
+The actual structure is closer to:
 
-A sign above one shop read:
+```text
+README
+  └─ describes city
+       └─ generates map
+            └─ contains library
+                 └─ reads README
+                      └─ describes city
+                           └─ ...
+```
 
-**EVERYTHING LOST HERE MAY BE FOUND INSIDE THE DESCRIPTION OF ITS LOSS.**
+The ellipsis is not part of the implementation.
 
-Inside, a bookseller handed Alice a volume titled *A Catalogue of Things Not Yet Missing*.
+It is merely where the implementation becomes inconvenient to print.
 
-She opened it.
+---
 
-The first entry described a girl standing in a square at dusk, holding a book called *A Catalogue of Things Not Yet Missing*.
+# Installation
 
-The second described the sentence describing her.
+Clone the repository:
 
-The third described the small silence Alice made when she understood that the second entry had already mentioned the third.
+```bash
+git clone city
+cd city
+```
 
-She shut the book.
+Then read this README completely before running anything.
 
-The bookseller smiled as though this, too, had been indexed.
+If you are already reading this README from inside the repository, the first requirement has therefore either been completed or has caused the condition that makes it appear completed.
 
-“Which way leaves the city?”
+Continue.
 
-“That depends,” he said, “on whether you mean the city you are in, the city being described, or the city required for the description to contain someone asking which way leaves it.”
+```bash
+npm install
+npm run city
+```
 
-Alice chose not to answer.
+You should see:
 
-This created a narrow street.
+```text
+CITY INITIALIZED
+Population: 1
+Observer: detected
+Location: README.md
+```
 
-The street led between two buildings, one painted with an enormous eye and the other with an enormous keyhole. Between them hung laundry embroidered with sentences:
+If `Observer: detected` does not appear, check whether you are currently reading the output.
 
-**THE MOON DREAMS THE WINDOW.**
+If you are, it has appeared conceptually.
 
-**THE WINDOW DREAMS THE ROOM.**
+If you are not, run:
 
-**THE ROOM DREAMS THE GIRL.**
+```bash
+npm run city
+```
 
-**THE GIRL DREAMS THE CITY.**
+and return to the beginning of this section.
 
-**THE CITY DREAMS—**
+Do not return to the beginning of this section.
 
-The final cloth had been torn exactly where the next word should have been.
+---
 
-Beyond it, Alice found a garden.
+# What It Does
 
-In the garden stood a table.
+The core function is approximately:
 
-On the table stood a teacup.
+```ts
+function city(description) {
+  return {
+    streets: parse(description),
+    description: describe(city(description))
+  };
+}
+```
 
-Inside the teacup, impossibly distant, lamps were beginning to glow along miniature streets.
+This code is intentionally approximate because the exact implementation would require the description to exist before the city that produces the description exists.
 
-Alice leaned closer.
+The project resolves this using a technique known internally as:
 
-There was a square.
+```text
+municipal recursion
+```
 
-There was a bookseller.
+Municipal recursion differs from ordinary recursion because the recursive call is permitted to construct zoning regulations for the function currently executing.
 
-There was a girl holding a book.
+---
 
-And behind the girl, so small that Alice first mistook it for a comma, another Alice leaned over another cup, looking down at another city where another dusk was folding its avenues inward.
+# The City
 
-She drew back.
+The generated city contains several districts.
 
-The city drew back with her.
+### Documentation District
 
-She leaned closer.
+Contains files explaining how to locate the Documentation District.
 
-The city leaned closer.
+Its central building is:
 
-So she tried something clever: she closed one eye.
+```text
+README.md
+```
 
-Half the windows went dark.
+The building contains a model of the city.
 
-She held her breath.
+The model contains a smaller Documentation District.
 
-The fountains stopped.
+Its central building is also:
 
-She thought of somewhere else.
+```text
+README.md
+```
 
-A door appeared.
+For zoning reasons, further models are represented symbolically.
 
-On the door was written:
+---
 
-**THIS DOOR OPENS ONLY FROM THE OTHER SIDE.**
+### Compiler Square
 
-Alice walked around it.
+All roads compile here.
 
-On the other side was the same sentence, written backward:
+At the center stands a clock displaying:
 
-**.EDIS REHTO EHT MORF YLNO SNEPO ROOD SIHT**
+```text
+11:59:60
+```
 
-Except in the reflection of the brass handle, where the words were perfectly readable, and behind those words appeared the reflection of Alice reading them, and behind that Alice a city, and inside that city a door, and upon that door—
+The clock advances only when nobody checks whether it has advanced.
 
-She stopped reading.
+The source for the clock is generated from its current displayed time.
 
-Somewhere, very far below, another Alice stopped reading.
+Changing the source changes the clock.
 
-Somewhere, very far above, something noticed.
+Changing the clock changes the source.
 
-The bells began ringing thirteen.
+This is considered expected behavior.
 
-Then twelve.
+---
 
-Then eleven.
+### Alice Street
 
-Then numbers that sounded like colors.
+Alice Street begins at:
 
-The streets rearranged themselves into the shape of a question.
+```text
+/map/alice
+```
 
-Alice could not see the whole question because she was standing inside one of its letters.
+and terminates at:
 
-She climbed the clocktower.
+```text
+/map/alice
+```
 
-From the top she finally saw it:
+The route between those points is 14.2 km.
 
-**WHO IS DREAMING WHOM?**
+Walking north eventually causes north to become an implementation detail.
 
-But the question mark curled around the city, became a road, became a river, became the handle of a teacup held by an enormous girl leaning over an enormous table beneath an enormous evening sky.
+At the third intersection you may encounter:
 
-Alice looked upward.
+```text
+WHITE_RABBIT
+```
 
-The enormous girl looked downward.
+Do not follow this process unless it is already following you.
 
-Neither moved.
+---
 
-Between them hung a distance filled with smaller cities.
+# Configuration
 
-Between those cities hung smaller Alices.
+Configuration is stored in:
 
-Between those Alices hung smaller moments of recognition.
+```json
+{
+  "city": {
+    "source": "./README.md",
+    "output": "./README.md",
+    "observer": "${CURRENT_READER}",
+    "exit": "./entrance"
+  }
+}
+```
 
-And threaded through every scale, almost too faint to notice, ran the same sentence:
+Changing `"source"` changes what the city believes it is.
 
-*At dusk, the city folded its avenues inward, every window containing another window, every alley narrowing into a smaller alley, and every clocktower keeping beneath its largest clock a second clock whose hands moved around a painted city where, at dusk, the avenues folded inward…*
+Changing `"output"` changes where that belief is recorded.
+
+Setting them to different files is supported but defeats the architecture.
+
+---
+
+# Running the Project
+
+Start normally:
+
+```bash
+npm run city
+```
+
+Start from inside the simulation:
+
+```bash
+npm run city -- --inside
+```
+
+Start outside the simulation:
+
+```bash
+npm run city -- --outside
+```
+
+`--outside` is currently an alias for `--inside`.
+
+This is not a bug.
+
+The distinction exists only from outside the distinction.
+
+---
+
+# API
+
+## `enter(location)`
+
+```ts
+enter("city")
+```
+
+Returns the location entered.
+
+Example:
+
+```ts
+enter("library")
+```
+
+returns:
+
+```text
+library
+```
+
+unless executed from inside the library, in which case it returns:
+
+```text
+reader
+```
+
+unless the reader is inside the documentation, in which case it returns:
+
+```text
+city
+```
+
+See `enter(location)`.
+
+---
+
+## `leave(location)`
+
+```ts
+leave("city")
+```
+
+Attempts to locate a context in which `"city"` is external.
+
+If successful, that context is added to the city.
+
+Therefore successful exits expand the boundary of the project.
+
+Repeated use is discouraged.
+
+---
+
+## `describe(value)`
+
+Returns a textual description of `value`.
+
+```ts
+describe(city)
+```
+
+produces this README.
+
+Because this README contains:
+
+```ts
+describe(city)
+```
+
+the function technically describes the invocation describing the function describing the city.
+
+The parser ignores this sentence.
+
+The parser does not ignore the previous sentence.
+
+---
+
+# Tests
+
+Run:
+
+```bash
+npm test
+```
+
+Expected output:
+
+```text
+✓ city contains map
+✓ map contains city
+✓ entrance leads inward
+✓ exit leads to entrance
+✓ README describes implementation
+✓ implementation generates README
+✓ observer exists
+? observer is external
+```
+
+The final test cannot pass while being observed.
+
+CI reports it as:
+
+```text
+SCHRÖDINGER
+```
+
+This is treated as green.
+
+---
+
+# Known Issues
+
+* Deleting the map causes the map to include a district named `MISSING_MAP`.
+* Renaming the project changes several street signs during the next build.
+* Opening two copies of the README may create duplicate observers.
+* `npm run exit` invokes `npm run enter`.
+* The generated documentation occasionally contains instructions that have already been followed.
+* The sentence immediately after this bullet may refer to the sentence immediately before it.
+* The sentence immediately before this bullet was written before this bullet existed.
+
+---
+
+# FAQ
+
+### Where is the database?
+
+Under the city.
+
+### Where is the city?
+
+In the database.
+
+### Where is the database?
+
+See the previous answer.
+
+### Which previous answer?
+
+The one answering this question after you determine which question it answers.
+
+---
+
+# Architecture
+
+The system follows a standard four-layer architecture:
+
+```text
+Observer
+   ↓
+Description
+   ↓
+City
+   ↓
+Observer
+```
+
+This diagram should be understood vertically.
+
+It should also be understood as a circle.
+
+For technical accuracy, imagine the bottom arrow continuing downward until it arrives at the top.
+
+---
+
+# Contributing
+
+Before opening a pull request:
+
+1. Fork the city.
+2. Enter your fork.
+3. Make your changes.
+4. Confirm that the changed city still contains the instructions for changing it.
+5. Submit the pull request from outside your fork.
+6. If you cannot determine whether you are outside your fork, open `README.md`.
+7. You are now in the Documentation District.
+8. See **Contributing**.
+
+Pull requests altering Step 8 must also update Step 8.
+
+---
+
+# Removing the Project
+
+Run:
+
+```bash
+npm uninstall city
+```
+
+The uninstaller removes all project files except the file containing the instructions required to verify that the project was removed.
+
+If this README remains afterward, removal was successful.
+
+If this README does not remain afterward, consult this README.
+
+---
+
+# Exit
+
+The official exit is located at:
+
+```text
+./exit/entrance
+```
+
+Opening it returns:
+
+```text
+You have reached the entrance.
+```
+
+From there, proceed to **Installation**.
+
+---
+
+# Installation
+
+Clone the repository:
+
+```bash
+git clone city
+cd city
+```
+
+Then read this README completely before running anything.
+
+If you remember already reading these instructions, your installation is probably functioning correctly.
+
+If you do not remember reading them, continue upward until you do.
