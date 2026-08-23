@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wayline</title>
+<style>
+  :root{
+    --land:#E8E4DB;
+    --panel:#FFFFFF;
+    --ink:#22262E;
+    --ink-soft:#6C7280;
+    --line:#E6E2D9;
+    --route:#2A5BE0;
+    --pin:#DE4A3F;
+    --chip:#F3F1EA;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden;}
+  body{
+    font-family:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color:var(--ink);
+    background:var(--land);
+  }
+  #map{position:fixed; inset:0; display:block; cursor:grab;}
+  #map.dragging{cursor:grabbing;}
+
+  #panel{
+    position:fixed; top:16px; left:16px; width:332px;
+    max-height:calc(100% - 32px);
+    background:var(--panel);
+    border-radius:14px;
+    box-shadow:0 6px 28px rgba(30,32,40,.16), 0 1px 3px rgba(30,32,40,.12);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  #panel header{
+    display:flex; align-items:center; gap:10px;
+    padding:15px 18px 11px;
+  }
+  .wordmark h1{font-size:18px; font-weight:700; letter-spacing:.2px;}
+  .wordmark p{font-size:11.5px; color:var(--ink-soft); margin-top:1px;}
+  .logo{
+    width:30px; height:30px; border-radius:8px; flex:none;
+    background:var(--route);
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .route-card{padding:0 18px 13px; border-bottom:1px solid var(--line);}
+  .endpoints{position:relative; padding-left:22px; margin-bottom:10px;}
+  .endpoints::before{
+    content:""; position:absolute; left:6.5px; top:16px; bottom:16px;
+    width:0; border-left:2px dotted #B9BFCB;
+  }
+  .ep{display:flex; align-items:flex-start; padding:5px 0;}
+  .ep .dot{
+    position:absolute; left:0; width:13px; height:13px; border-radius:50%;
+    border:3px solid var(--route); background:#fff; margin-top:4px;
+  }
+  .ep .dot.end{border-color:var(--pin); border-radius:3px; transform:rotate(45deg);}
+  .ep label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); display:block;}
+  .ep .place{font-size:15px; font-weight:600;}
+  .summary{
+    font-size:12.5px; color:var(--ink-soft); background:var(--chip);
+    border-radius:8px; padding:7px 10px; margin-bottom:12px;
+  }
+  .summary strong{color:var(--ink);}
+  .actions{display:flex; gap:8px; margin-bottom:10px;}
+  button{
+    font:inherit; font-size:14px; font-weight:600; cursor:pointer;
+    border:none; border-radius:20px; padding:9px 18px;
+    background:var(--route); color:#fff;
+  }
+  button:hover{background:#2450C8;}
+  button.ghost{background:transparent; color:var(--route); border:1.5px solid #C9D4F2;}
+  button.ghost:hover{background:#F2F5FD;}
+  button:focus-visible, input:focus-visible{outline:2.5px solid #1B3F9E; outline-offset:2px;}
+  .toggle{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft); user-select:none;}
+  .toggle input{width:15px; height:15px; accent-color:var(--route);}
+
+  #steps{list-style:none; overflow-y:auto; flex:1; min-height:56px; padding:6px 8px;}
+  #steps li{
+    display:flex; gap:12px; align-items:center;
+    padding:10px 10px; border-radius:10px; font-size:13.5px;
+  }
+  #steps li .ic{
+    flex:none; width:28px; height:28px; border-radius:50%;
+    background:var(--chip); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+  }
+  #steps li .d{margin-left:auto; font-size:12px; color:var(--ink-soft); flex:none; padding-left:8px;}
+  #steps li.active{background:#EAF0FE;}
+  #steps li.active .ic{background:var(--route); color:#fff;}
+  #steps li.done{opacity:.45;}
+
+  .stats{display:flex; border-top:1px solid var(--line);}
+  .stats > div{flex:1; text-align:center; padding:10px 4px 12px;}
+  .stats > div + div{border-left:1px solid var(--line);}
+  .stats label{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft);}
+  .stats b{font-size:15px;}
+
+  .ctl{position:fixed; right:16px; display:flex; flex-direction:column; gap:8px;}
+  #ctl-zoom{bottom:92px;}
+  #ctl-compass{bottom:204px;}
+  .ctl button{
+    width:42px; height:42px; border-radius:50%;
+    background:#fff; color:var(--ink); font-size:20px; font-weight:500;
+    box-shadow:0 2px 8px rgba(30,32,40,.22); padding:0;
+  }
+  .ctl button:hover{background:#F5F3EC;}
+
+  #scalebar{
+    position:fixed; right:16px; bottom:22px;
+    font-size:11px; color:#555; text-align:right; user-select:none;
+  }
+  #scalebar .bar{
+    height:0; border-bottom:2px solid #555; border-left:2px solid #555; border-right:2px solid #555;
+    width:80px; margin-top:2px; margin-left:auto;
+  }
+  #attrib{
+    position:fixed; left:12px; bottom:8px;
+    font-size:10.5px; color:#8B867A; user-select:none;
+  }
+  @media (max-width:680px){ #attrib{display:none;} }
+
+  #toast{
+    position:fixed; left:50%; bottom:34px; transform:translate(-50%, 20px);
+    background:#23262d; color:#fff; border-radius:12px;
+    padding:12px 20px; text-align:center;
+    box-shadow:0 8px 24px rgba(0,0,0,.3);
+    opacity:0; pointer-events:none;
+    transition:opacity .35s ease, transform .35s ease;
+  }
+  #toast.show{opacity:1; transform:translate(-50%, 0);}
+  #toast b{display:block; font-size:14.5px;}
+  #toast span{font-size:12.5px; color:#B9BFCB;}
+
+  #hint{
+    position:fixed; left:50%; top:18px; transform:translateX(-50%);
+    background:rgba(255,255,255,.92); border-radius:20px;
+    font-size:12.5px; color:var(--ink-soft);
+    padding:7px 16px; box-shadow:0 2px 8px rgba(30,32,40,.14);
+    transition:opacity .6s ease; pointer-events:none;
+  }
+  #hint.hide{opacity:0;}
+
+  @media (prefers-reduced-motion: reduce){
+    #toast{transition:none;}
+    #hint{transition:none;}
+  }
+  @media (max-width:680px){
+    #panel{top:auto; left:10px; right:10px; bottom:10px; width:auto; max-height:44vh;}
+    #steps{max-height:110px;}
+    #hint{top:12px; font-size:11.5px; white-space:nowrap;}
+    #ctl-zoom{bottom:calc(44vh + 86px);}
+    #ctl-compass{bottom:calc(44vh + 198px);}
+    #scalebar{bottom:calc(44vh + 24px);}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="map" aria-label="City map"></canvas>
+
+<aside id="panel">
+  <header>
+    <div class="logo">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 1 L14 14 L8 10.6 L2 14 Z" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="wordmark">
+      <h1>Wayline</h1>
+      <p>Directions</p>
+    </div>
+  </header>
+
+  <div class="route-card">
+    <div class="endpoints">
+      <div class="ep"><span class="dot"></span><div><label>From</label><div class="place">Your location</div></div></div>
+      <div class="ep"><span class="dot end"></span><div><label>To</label><div class="place">1 Meridian Plaza</div></div></div>
+    </div>
+    <div class="summary"><strong>1.9 km</strong> &middot; about 6 min &middot; fastest route via Halstead Ave</div>
+    <div class="actions">
+      <button id="go">Start navigation</button>
+      <button id="reset" class="ghost">Reset</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="headup" checked> Keep travel direction up</label>
+  </div>
+
+  <ol id="steps"></ol>
+
+  <div class="stats">
+    <div><label>Traveled</label><b id="odo">0 m</b></div>
+    <div><label>Remaining</label><b id="rem">1.9 km</b></div>
+    <div><label>Time</label><b id="eta">6 min</b></div>
+  </div>
+</aside>
+
+<div class="ctl" id="ctl-compass">
+  <button id="compass" title="Re-center" aria-label="Re-center">&#8853;</button>
+</div>
+<div class="ctl" id="ctl-zoom">
+  <button id="zin" title="Zoom in" aria-label="Zoom in">+</button>
+  <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+</div>
+
+<div id="scalebar">50 m<div class="bar" id="scalebar-bar"></div></div>
+<div id="attrib">&copy; Wayline</div>
+
+<div id="toast" role="status"><b id="toast-title"></b><span id="toast-sub"></span></div>
+<div id="hint">Scroll to zoom &middot; drag to pan</div>
+
+<script>
+"use strict";
+/* Wayline - canvas street map with turn-by-turn navigation.
+   The street network is generated in log-polar coordinates:
+   radial avenues, circumferential cross streets, one canal ring,
+   and one long shallow-diagonal road. Content is periodic, so the
+   grid extends indefinitely in every direction at full detail. */
+
+var TWO_PI = Math.PI * 2;
+var U = 36;                       /* cross streets per period          */
+var A = 256;                      /* avenues around                    */
+var DTH = TWO_PI / A;             /* angular spacing of avenues        */
+var CL = DTH;                     /* conformal cell size (square)      */
+var LNS = U * CL;                 /* log-radius extent of one period   */
+var BLOCK_M = 45;                 /* nominal block length, meters      */
+var TRIP_KM = 1.89;               /* route length                      */
+var TRIP_MIN = 6;                 /* route time                        */
+
+/* diagonal road: X = DIAG_X0 + DIAG_K * Y (wraps mod 2*pi) */
+var DIAG_K = TWO_PI / LNS;
+var DIAG_X0 = 2.35;
+
+/* canal ring occupies part of cross-street band 16 */
+var CANAL_I = 16;
+var CANAL_Y0 = (CANAL_I + 0.06) * CL;
+var CANAL_Y1 = (CANAL_I + 0.97) * CL;
+
+/* ---------- street names ------------------------------------------- */
+var AV_NAMES = ["Meridian","Halstead","Corvin","Ashland","Blackstone","Winslow",
+  "Carrick","Delmar","Ellery","Fenwick","Granville","Harrow","Ingram","Juniper",
+  "Kessler","Landon","Maribel","Norcross","Alder","Pembrook","Quimby","Rosslyn",
+  "Sutter","Tremont","Underhill","Vance","Wexford","Yardley","Bexley","Calloway",
+  "Dunmore","Everly"];
+var CROSS_NAMES = ["Abbey","Birch","Calder","Doyle","Whitfield","Ellis",
+  "Fothergill","Gable","Hartwell","Iris","Jasper","Kirkwood","Lorimer","Milton",
+  "Newbury","Ockham","Palmer","Quay","Rowan","Selby","Thorne","Ulster","Verona",
+  "Wainwright","Yates","Zell","Garfield","Hobbes","Irving","Keats","Linden",
+  "Mercer","Norfolk","Orchard","Pruitt","Sable"];
+
+/* ---------- deterministic per-cell randomness ---------------------- */
+function cellHash(i, j){
+  var h = (i * 374761393 + j * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967296;
+}
+function cellRng(i, j){
+  var seed = ((i * 2654435761) ^ (j * 40503)) | 0;
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function mod(n, m){ return ((n % m) + m) % m; }
+
+/* ---------- route -------------------------------------------------- */
+/* Conformal waypoints (x in radians, y in log-radius), driving y down.
+   Straight blocks on Meridian Ave, a jog over to Halstead Ave and back,
+   totalling one full period of descent. */
+var WPTS = [
+  [0,        36 * CL],
+  [0,        26 * CL],
+  [-3 * CL,  26 * CL],
+  [-3 * CL,   4 * CL],
+  [0,         4 * CL],
+  [0,         0]
+];
+var ROUTE = [];       /* [{x, y, h}] dense samples with plane heading  */
+var ROUTE_LEN = 0;
+var ROUTE_CUM = [];
+(function buildRoute(){
+  var fr = 0.42 * CL;   /* corner radius */
+  var pts = [];
+  pts.push(WPTS[0].slice());
+  for (var w = 1; w < WPTS.length - 1; w++){
+    var P = WPTS[w], Pa = WPTS[w - 1], Pb = WPTS[w + 1];
+    var da = [Pa[0] - P[0], Pa[1] - P[1]], la = Math.hypot(da[0], da[1]);
+    var db = [Pb[0] - P[0], Pb[1] - P[1]], lb = Math.hypot(db[0], db[1]);
+    da[0] /= la; da[1] /= la; db[0] /= lb; db[1] /= lb;
+    var A0 = [P[0] + da[0] * fr, P[1] + da[1] * fr];
+    var B0 = [P[0] + db[0] * fr, P[1] + db[1] * fr];
+    pts.push(A0);
+    for (var q = 1; q < 6; q++){        /* quadratic corner */
+      var s = q / 6, s1 = 1 - s;
+      pts.push([
+        s1 * s1 * A0[0] + 2 * s1 * s * P[0] + s * s * B0[0],
+        s1 * s1 * A0[1] + 2 * s1 * s * P[1] + s * s * B0[1]
+      ]);
+    }
+    pts.push(B0);
+  }
+  pts.push(WPTS[WPTS.length - 1].slice());
+
+  /* resample to even spacing */
+  var cum = [0], t;
+  for (t = 1; t < pts.length; t++)
+    cum.push(cum[t - 1] + Math.hypot(pts[t][0] - pts[t - 1][0], pts[t][1] - pts[t - 1][1]));
+  var total = cum[cum.length - 1];
+  var N = 560, seg = 0;
+  for (t = 0; t <= N; t++){
+    var target = total * t / N;
+    while (seg < cum.length - 2 && cum[seg + 1] < target) seg++;
+    var f = (target - cum[seg]) / Math.max(1e-12, cum[seg + 1] - cum[seg]);
+    ROUTE.push({
+      x: pts[seg][0] + (pts[seg + 1][0] - pts[seg][0]) * f,
+      y: pts[seg][1] + (pts[seg + 1][1] - pts[seg][1]) * f,
+      h: 0
+    });
+  }
+  for (t = 0; t < ROUTE.length; t++){
+    var a = ROUTE[Math.max(0, t - 1)], b = ROUTE[Math.min(ROUTE.length - 1, t + 1)];
+    var dx = b.x - a.x, dy = b.y - a.y;
+    ROUTE[t].h = ROUTE[t].x + Math.atan2(dx, dy) + Math.PI; /* plane heading */
+  }
+  ROUTE_LEN = total;
+  ROUTE_CUM = cum;
+})();
+
+function routeAt(pf){
+  var f = pf * (ROUTE.length - 1);
+  var i0 = Math.min(ROUTE.length - 2, Math.floor(f));
+  var g = f - i0;
+  var a = ROUTE[i0], b = ROUTE[i0 + 1];
+  var h0 = a.h, h1 = b.h;
+  var dh = h1 - h0;
+  if (dh > Math.PI) dh -= TWO_PI;
+  if (dh < -Math.PI) dh += TWO_PI;
+  return { x: a.x + (b.x - a.x) * g, y: a.y + (b.y - a.y) * g, h: h0 + dh * g };
+}
+
+/* step boundaries as fractions of route length */
+var STEP_P = [0, 10 / 42, 13 / 42, 35 / 42, 38 / 42];
+var STEPS = [
+  { ic: "\u2191", text: "Head north on Meridian Ave",   d: "450 m" },
+  { ic: "\u2192", text: "Turn right onto Garfield St",  d: "140 m" },
+  { ic: "\u2190", text: "Turn left onto Halstead Ave",  d: "1.0 km" },
+  { ic: "\u2190", text: "Turn left onto Whitfield St",  d: "140 m" },
+  { ic: "\u2192", text: "Turn right onto Meridian Ave", d: "180 m" },
+  { ic: "\u25C9", text: "Arrive at 1 Meridian Plaza, on the right", d: "" }
+];
+
+/* ---------- camera & trip state ------------------------------------ */
+var canvas = document.getElementById("map");
+var ctx = canvas.getContext("2d");
+var W = 0, H = 0, DPR = 1, Z0 = 2600, HALFDIAG = 0;
+
+var pf = 0;            /* position along route, 0..1                 */
+var loops = 0;         /* completed trips (odometer only)            */
+var panX = 0, panY = 0;
+var zoomMul = 1;
+var rotOffset = 0;
+var headingUp = true;
+var navigating = false;
+var lastFrame = 0;
+var NAV_RATE = 1 / 30; /* route fraction per second                  */
+
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  Z0 = Math.min(W, H) * (Math.min(W, H) < 560 ? 4.4 : 3.6);
+  HALFDIAG = Math.hypot(W, H) / 2;
+  updateScalebar();
+}
+window.addEventListener("resize", resize);
+
+/* ---------- frame-local camera derivation -------------------------- */
+var cam = { X: 0, Y: 0, r: 1, z: 1, rho: 0, px: 0, py: 0, cR: 1, sR: 0 };
+
+function computeCamera(){
+  var rp = routeAt(pf);
+  cam.X = rp.x + panX;
+  cam.Y = rp.y + panY;
+  cam.r = Math.exp(cam.Y);
+  cam.z = Z0 * zoomMul / cam.r;
+  cam.rho = headingUp ? (-Math.PI / 2 - rp.h + rotOffset) : (Math.PI / 2 + rotOffset);
+  cam.px = cam.r * Math.cos(cam.X);
+  cam.py = cam.r * Math.sin(cam.X);
+  cam.cR = Math.cos(cam.rho);
+  cam.sR = Math.sin(cam.rho);
+}
+
+/* conformal (x,y) -> screen pixels */
+function cs(x, y){
+  var r = Math.exp(y);
+  var ax = r * Math.cos(x) - cam.px;
+  var ay = r * Math.sin(x) - cam.py;
+  return [
+    W / 2 + cam.z * (ax * cam.cR - ay * cam.sR),
+    H / 2 + cam.z * (ax * cam.sR + ay * cam.cR)
+  ];
+}
+/* plane -> screen */
+function ps(px, py){
+  var ax = px - cam.px, ay = py - cam.py;
+  return [
+    W / 2 + cam.z * (ax * cam.cR - ay * cam.sR),
+    H / 2 + cam.z * (ax * cam.sR + ay * cam.cR)
+  ];
+}
+
+/* set canvas transform to plane coordinates */
+function planeTransform(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.translate(W / 2, H / 2);
+  ctx.transform(cam.cR, cam.sR, -cam.sR, cam.cR, 0, 0);
+  ctx.scale(cam.z, cam.z);
+  ctx.translate(-cam.px, -cam.py);
+}
+function screenTransform(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+/* ---------- cell classification ------------------------------------ */
+/* returns: "b" buildings, "p" park, "q" open ground, "z" plaza, "w" canal */
+function cellKind(i, j){
+  var im = mod(i, U), jm = mod(j, A);
+  if (im === CANAL_I) return "w";
+  if (im === 35 && jm === A - 1) return "z";
+  if (im >= 24 && im <= 26 && jm >= 5 && jm <= 7) return "p";
+  if (im === 8 || im === 9){ if (jm === A - 9 || jm === A - 8) return "p"; }
+  /* clearance along the diagonal road */
+  var cx = (j + 0.5) * DTH, cy = (i + 0.5) * CL;
+  var v = cx - DIAG_X0 - DIAG_K * cy;
+  v = mod(v + Math.PI, TWO_PI) - Math.PI;
+  if (Math.abs(v) / Math.sqrt(1 + DIAG_K * DIAG_K) < 0.42 * CL) return "q";
+  var h = cellHash(im, jm);
+  if (h < 0.025) return "p";
+  if (h < 0.06) return "q";
+  return "b";
+}
+
+/* draw one straight-edged quad given conformal corners (plane ctx) */
+function quad(x0, y0, x1, y1){
+  var r0 = Math.exp(y0), r1 = Math.exp(y1);
+  var c0 = Math.cos(x0), s0 = Math.sin(x0);
+  var c1 = Math.cos(x1), s1 = Math.sin(x1);
+  ctx.beginPath();
+  ctx.moveTo(r0 * c0, r0 * s0);
+  ctx.lineTo(r0 * c1, r0 * s1);
+  ctx.lineTo(r1 * c1, r1 * s1);
+  ctx.lineTo(r1 * c0, r1 * s0);
+  ctx.closePath();
+}
+
+/* ---------- rendering ---------------------------------------------- */
+var win = { x0: 0, x1: 0, y0: 0, y1: 0 };
+
+function render(){
+  computeCamera();
+  var halfWin = HALFDIAG / (Z0 * zoomMul) + 2.5 * CL;
+  win.x0 = cam.X - halfWin; win.x1 = cam.X + halfWin;
+  win.y0 = cam.Y - halfWin; win.y1 = cam.Y + halfWin;
+
+  screenTransform();
+  ctx.fillStyle = "#E8E4DB";
+  ctx.fillRect(0, 0, W, H);
+
+  planeTransform();
+
+  var i0 = Math.floor(win.y0 / CL), i1 = Math.ceil(win.y1 / CL);
+  var j0 = Math.floor(win.x0 / DTH), j1 = Math.ceil(win.x1 / DTH);
+  var i, j, rr;
+
+  var blockPx = Z0 * zoomMul * CL;
+  var cellCount = (i1 - i0 + 1) * (j1 - j0 + 1);
+  var drawBuildings = blockPx > 24 && cellCount < 2400;
+  var drawStrokes = blockPx > 46 && cellCount < 1400;
+
+  /* --- blocks --- */
+  for (i = i0; i <= i1; i++){
+    for (j = j0; j <= j1; j++){
+      var kind = cellKind(i, j);
+      var x0 = j * DTH, x1 = x0 + DTH;
+      var y0 = i * CL,  y1 = y0 + CL;
+      var inset = 0.115 * CL;
+
+      if (kind === "p"){
+        ctx.fillStyle = "#B5D2A2";
+        quad(x0 + inset * 0.6, y0 + inset * 0.6, x1 - inset * 0.6, y1 - inset * 0.6);
+        ctx.fill();
+        if (drawStrokes){
+          var rg = cellRng(mod(i, U) + 100, mod(j, A));
+          ctx.fillStyle = "#93BB80";
+          for (var tt = 0; tt < 5; tt++){
+            var tx = x0 + (0.2 + 0.6 * rg()) * DTH;
+            var ty = y0 + (0.2 + 0.6 * rg()) * CL;
+            var tp = [Math.exp(ty) * Math.cos(tx), Math.exp(ty) * Math.sin(tx)];
+            ctx.beginPath();
+            ctx.arc(tp[0], tp[1], 0.045 * CL * Math.exp(ty), 0, TWO_PI);
+            ctx.fill();
+          }
+        }
+        continue;
+      }
+      if (kind === "q" || kind === "w"){
+        ctx.fillStyle = kind === "q" ? "#E0DBCF" : "#DDD8CB";
+        quad(x0 + inset * 0.5, y0 + inset * 0.5, x1 - inset * 0.5, y1 - inset * 0.5);
+        ctx.fill();
+        continue;
+      }
+      if (kind === "z"){
+        ctx.fillStyle = "#E9E0C9";
+        quad(x0 + inset * 0.5, y0 + inset * 0.5, x1 - inset * 0.5, y1 - inset * 0.5);
+        ctx.fill();
+        if (drawBuildings){
+          ctx.fillStyle = "#D3C6A6";
+          quad(x0 + 0.30 * CL, y0 + 0.34 * CL, x1 - 0.30 * CL, y1 - 0.38 * CL);
+          ctx.fill();
+          if (drawStrokes){ ctx.lineWidth = 0.012 * CL * Math.exp(y0); ctx.strokeStyle = "#B5A784"; ctx.stroke(); }
+        }
+        continue;
+      }
+
+      /* buildings */
+      if (!drawBuildings){
+        ctx.fillStyle = "#DCD6C8";
+        quad(x0 + inset, y0 + inset, x1 - inset, y1 - inset);
+        ctx.fill();
+        continue;
+      }
+      var rng = cellRng(mod(i, U), mod(j, A));
+      var cols = 1 + Math.floor(rng() * 3);
+      var bx0 = x0 + inset, bx1 = x1 - inset;
+      var by0 = y0 + inset, by1 = y1 - inset;
+      var colW = (bx1 - bx0) / cols;
+      for (var c = 0; c < cols; c++){
+        var rows = 1 + Math.floor(rng() * 2);
+        var cx0 = bx0 + c * colW + 0.015 * CL;
+        var cx1 = bx0 + (c + 1) * colW - 0.015 * CL;
+        var rowH = (by1 - by0) / rows;
+        for (var rI = 0; rI < rows; rI++){
+          var cy0 = by0 + rI * rowH + 0.015 * CL;
+          var cy1 = by0 + (rI + 1) * rowH - 0.015 * CL;
+          var shade = 78 + Math.floor(rng() * 11);
+          var hue = 40 + Math.floor(rng() * 10) - 5;
+          if (rng() < 0.06) ctx.fillStyle = "#D8C6B4";
+          else ctx.fillStyle = "hsl(" + hue + ", 13%, " + shade + "%)";
+          quad(cx0, cy0, cx1, cy1);
+          ctx.fill();
+          if (drawStrokes){
+            ctx.lineWidth = 0.008 * CL * Math.exp(cy0);
+            ctx.strokeStyle = "#C6BFAD";
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  /* --- canal --- */
+  for (i = i0; i <= i1; i++){
+    if (mod(i, U) !== CANAL_I) continue;
+    var yc0 = i * CL + (CANAL_Y0 - CANAL_I * CL);
+    var yc1 = i * CL + (CANAL_Y1 - CANAL_I * CL);
+    var rm = Math.exp((yc0 + yc1) / 2);
+    ctx.beginPath();
+    ctx.arc(0, 0, rm, win.x0, win.x1);
+    ctx.lineWidth = Math.exp(yc1) - Math.exp(yc0);
+    ctx.strokeStyle = "#9FC6DF";
+    ctx.stroke();
+  }
+
+  /* --- streets: casings then surfaces --- */
+  for (var pass = 0; pass < 2; pass++){
+    /* cross streets (arcs) */
+    for (i = i0; i <= i1; i++){
+      rr = Math.exp(i * CL);
+      var majorC = mod(i, 6) === 0;
+      var wC = (majorC ? 0.20 : 0.115) * CL * rr;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr, win.x0, win.x1);
+      ctx.lineWidth = pass === 0 ? wC + 0.045 * CL * rr : wC;
+      ctx.strokeStyle = pass === 0 ? "#CFC8B8" : (majorC ? "#FCE9A4" : "#FFFFFF");
+      ctx.stroke();
+    }
+    /* avenues (radial trapezoids) */
+    for (j = j0; j <= j1; j++){
+      var xa = j * DTH;
+      var majorA = mod(j, 8) === 0;
+      var wA = (majorA ? 0.20 : 0.115) * CL + (pass === 0 ? 0.045 * CL : 0);
+      var ca = Math.cos(xa), sa = Math.sin(xa);
+      var nx = -sa, ny = ca;
+      var steps = 5;
+      ctx.beginPath();
+      var side = [];
+      for (var s2 = 0; s2 <= steps; s2++){
+        var yy = win.y0 + (win.y1 - win.y0) * s2 / steps;
+        var rv = Math.exp(yy), hw = wA * rv / 2;
+        var qx = rv * ca, qy = rv * sa;
+        if (s2 === 0) ctx.moveTo(qx + nx * hw, qy + ny * hw);
+        else ctx.lineTo(qx + nx * hw, qy + ny * hw);
+        side.push([qx - nx * hw, qy - ny * hw]);
+      }
+      for (var s3 = side.length - 1; s3 >= 0; s3--) ctx.lineTo(side[s3][0], side[s3][1]);
+      ctx.closePath();
+      ctx.fillStyle = pass === 0 ? "#CFC8B8" : (majorA ? "#FCE9A4" : "#FFFFFF");
+      ctx.fill();
+    }
+  }
+
+  /* --- diagonal road --- */
+  drawDiagonal();
+
+  /* --- route overlay --- */
+  drawRoute();
+
+  /* --- destination pins --- */
+  drawPins();
+
+  /* --- labels --- */
+  screenTransform();
+  drawLabels(i0, i1, j0, j1);
+
+  /* --- position marker --- */
+  var mk = routeAt(pf);
+  var mp = cs(mk.x, mk.y);
+  ctx.save();
+  ctx.translate(mp[0], mp[1]);
+  ctx.beginPath(); ctx.arc(0, 0, 10, 0, TWO_PI); ctx.fillStyle = "#FFFFFF"; ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 6.8, 0, TWO_PI); ctx.fillStyle = "#2A5BE0"; ctx.fill();
+  var hs = mk.h + cam.rho;
+  ctx.rotate(hs + Math.PI / 2);
+  ctx.beginPath();
+  ctx.moveTo(0, -19); ctx.lineTo(-6.5, -10); ctx.lineTo(6.5, -10); ctx.closePath();
+  ctx.fillStyle = "rgba(42,91,224,0.85)"; ctx.fill();
+  ctx.restore();
+}
+
+function drawDiagonal(){
+  var step = CL / 8, runs = [], run = null, yy;
+  for (yy = win.y0 - CL; yy <= win.y1 + CL; yy += step){
+    var xr = DIAG_X0 + DIAG_K * yy;
+    var k2 = Math.round((cam.X - xr) / TWO_PI);
+    var xx = xr + k2 * TWO_PI;
+    if (xx > win.x0 - 0.05 && xx < win.x1 + 0.05){
+      if (!run){ run = []; runs.push(run); }
+      run.push([xx, yy]);
+    } else run = null;
+  }
+  for (var r2 = 0; r2 < runs.length; r2++){
+    var pts = runs[r2];
+    if (pts.length < 2) continue;
+    for (var pass = 0; pass < 2; pass++){
+      var w = (pass === 0 ? 0.245 : 0.20) * CL;
+      ctx.beginPath();
+      var back = [];
+      for (var q2 = 0; q2 < pts.length; q2++){
+        var P = pts[q2];
+        var Pn = pts[Math.min(pts.length - 1, q2 + 1)];
+        var Pp = pts[Math.max(0, q2 - 1)];
+        var rv = Math.exp(P[1]);
+        var pl = [rv * Math.cos(P[0]), rv * Math.sin(P[0])];
+        var r1 = Math.exp(Pn[1]), r0 = Math.exp(Pp[1]);
+        var tx = r1 * Math.cos(Pn[0]) - r0 * Math.cos(Pp[0]);
+        var ty = r1 * Math.sin(Pn[0]) - r0 * Math.sin(Pp[0]);
+        var tl = Math.hypot(tx, ty) || 1;
+        var nx = -ty / tl, ny = tx / tl, hw = w * rv / 2;
+        if (q2 === 0) ctx.moveTo(pl[0] + nx * hw, pl[1] + ny * hw);
+        else ctx.lineTo(pl[0] + nx * hw, pl[1] + ny * hw);
+        back.push([pl[0] - nx * hw, pl[1] - ny * hw]);
+      }
+      for (var b2 = back.length - 1; b2 >= 0; b2--) ctx.lineTo(back[b2][0], back[b2][1]);
+      ctx.closePath();
+      ctx.fillStyle = pass === 0 ? "#CFC8B8" : "#FCE9A4";
+      ctx.fill();
+    }
+  }
+}
+
+function drawRoute(){
+  for (var k = -2; k <= 2; k++){
+    var sc = Math.exp(-k * LNS);
+    var yTop = LNS - k * LNS, yBot = -k * LNS;
+    if (yTop < win.y0 - 0.2 || yBot > win.y1 + 0.2) continue;
+    ctx.beginPath();
+    var back = [];
+    for (var q = 0; q < ROUTE.length; q += 2){
+      var P = ROUTE[q];
+      var rv = Math.exp(P.y) * sc;
+      var pl = [rv * Math.cos(P.x), rv * Math.sin(P.x)];
+      var hn = P.h;
+      var nx = -Math.sin(hn), ny = Math.cos(hn);
+      var hw = 0.045 * CL * rv;
+      if (q === 0) ctx.moveTo(pl[0] + nx * hw, pl[1] + ny * hw);
+      else ctx.lineTo(pl[0] + nx * hw, pl[1] + ny * hw);
+      back.push([pl[0] - nx * hw, pl[1] - ny * hw]);
+    }
+    for (var b = back.length - 1; b >= 0; b--) ctx.lineTo(back[b][0], back[b][1]);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(42,91,224,0.85)";
+    ctx.fill();
+  }
+}
+
+function drawPins(){
+  for (var k = -1; k <= 2; k++){
+    var y = 35.42 * CL - k * LNS;
+    if (y < win.y0 - 0.3 || y > win.y1 + 0.3) continue;
+    var x = -0.5 * DTH;
+    var rv = Math.exp(y);
+    var pl = [rv * Math.cos(x), rv * Math.sin(x)];
+    var sp = ps(pl[0], pl[1]);
+    if (sp[0] < -60 || sp[0] > W + 60 || sp[1] < -60 || sp[1] > H + 60) continue;
+    var s = Math.max(6, Math.min(40, 0.62 * CL * rv * cam.z));
+    ctx.save();
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.translate(sp[0], sp[1]);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-0.46 * s, -0.82 * s);
+    ctx.lineTo(0.46 * s, -0.82 * s);
+    ctx.closePath();
+    ctx.arc(0, -0.88 * s, 0.5 * s, 0, TWO_PI);
+    ctx.fillStyle = "#DE4A3F"; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -0.88 * s, 0.19 * s, 0, TWO_PI);
+    ctx.fillStyle = "#FFFFFF"; ctx.fill();
+    ctx.restore();
+    planeTransform();
+  }
+}
+
+/* ---------- labels -------------------------------------------------- */
+var HOODS = [
+  { j: -6,  i: 14, t: "Old Quay" },
+  { j: 10,  i: 30, t: "Harrow End" },
+  { j: -12, i: 8,  t: "Bellamy" },
+  { j: 6,   i: 25, t: "Whitmore Green", park: true }
+];
+
+function labelAt(x, y, text, ang, font, fill, halo){
+  var p = cs(x, y);
+  if (p[0] < -60 || p[0] > W + 60 || p[1] < -40 || p[1] > H + 40) return;
+  var a = ang === null ? 0 : ang + cam.rho;
+  if (ang !== null){
+    a = mod(a, TWO_PI);
+    if (a > Math.PI / 2 && a < 3 * Math.PI / 2) a += Math.PI;
+  }
+  ctx.save();
+  ctx.translate(p[0], p[1]);
+  ctx.rotate(a);
+  ctx.font = font;
+  ctx.fillStyle = fill;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = halo || "rgba(232,228,219,0.85)";
+  ctx.strokeText(text, 0, 0);
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function drawLabels(i0, i1, j0, j1){
+  var i, j, k;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0.8px";
+  var lz = zoomMul;
+  if (lz < 0.62) { if ("letterSpacing" in ctx) ctx.letterSpacing = "0px"; return; }
+
+  /* avenue names along visible major radials */
+  for (j = j0; j <= j1; j++){
+    if (mod(j, 8) !== 0) continue;
+    var name = AV_NAMES[mod(j / 8, 32)] + " Ave";
+    var xa = j * DTH;
+    for (k = 0; k < 3; k++){
+      var yy = (Math.floor((cam.Y) / (12 * CL)) + k - 1) * 12 * CL + 3.5 * CL;
+      if (yy < win.y0 || yy > win.y1) continue;
+      labelAt(xa, yy, name, xa, "600 11.5px system-ui, sans-serif", "#8A8371");
+    }
+  }
+  /* cross street names */
+  for (i = i0; i <= i1; i++){
+    var im = mod(i, U);
+    var isMajor = im % 6 === 0;
+    if (!isMajor && im !== 26 && im !== 4) continue;
+    var nameC = CROSS_NAMES[im] + " St";
+    var xs = cam.X + 2.6 * DTH;
+    var xq = Math.round(xs / DTH) * DTH + 0.5 * DTH;
+    labelAt(xq, i * CL + 0.0 * CL, nameC, xq + Math.PI / 2,
+      (isMajor ? "600 11.5px" : "500 10.5px") + " system-ui, sans-serif", "#8A8371");
+  }
+  /* canal */
+  for (i = i0; i <= i1; i++){
+    if (mod(i, U) !== CANAL_I) continue;
+    labelAt(cam.X - 3.2 * DTH, i * CL + 0.5 * CL, "Roseline Canal",
+      cam.X - 3.2 * DTH + Math.PI / 2, "italic 12px Georgia, serif", "#4A7FA6",
+      "rgba(159,198,223,0.7)");
+  }
+  /* neighborhoods + park */
+  for (var hI = 0; hI < HOODS.length; hI++){
+    var hd = HOODS[hI];
+    for (k = -1; k <= 1; k++){
+      var yh = (hd.i + 0.5) * CL + k * LNS;
+      if (yh < win.y0 || yh > win.y1) continue;
+      var xh0 = hd.j * DTH;
+      var kk = Math.round((cam.X - xh0) / TWO_PI);
+      var xh = xh0 + kk * TWO_PI;
+      if (hd.park)
+        labelAt(xh, yh, hd.t, null, "italic 12px Georgia, serif", "#5B8747");
+      else
+        labelAt(xh, yh, hd.t.toUpperCase(), null, "600 12px system-ui, sans-serif", "#A9A395");
+    }
+  }
+  /* plaza */
+  for (k = -1; k <= 1; k++){
+    var yp = 35.5 * CL + k * LNS;
+    if (yp < win.y0 || yp > win.y1) continue;
+    labelAt(-0.5 * DTH, yp - 0.62 * CL, "Meridian Plaza", null,
+      "600 11px system-ui, sans-serif", "#54423A");
+  }
+  /* diagonal road name */
+  var yDbase = (cam.X - DIAG_X0) / DIAG_K;
+  var mD = Math.round((cam.Y - yDbase) / LNS);
+  for (k = -1; k <= 1; k++){
+    var yDw = yDbase + (mD + k) * LNS;
+    if (yDw > win.y0 && yDw < win.y1){
+      var xD = DIAG_X0 + DIAG_K * yDw;
+      var kD = Math.round((cam.X - xD) / TWO_PI);
+      labelAt(xD + kD * TWO_PI, yDw, "Old Post Rd", xD + Math.PI / 2 + 0.14,
+        "600 11px system-ui, sans-serif", "#8A8371");
+    }
+  }
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+}
+
+/* ---------- panel --------------------------------------------------- */
+var stepsEl = document.getElementById("steps");
+(function(){
+  for (var i = 0; i < STEPS.length; i++){
+    var li = document.createElement("li");
+    var ic = document.createElement("span"); ic.className = "ic"; ic.textContent = STEPS[i].ic;
+    var tx = document.createElement("span"); tx.textContent = STEPS[i].text;
+    li.appendChild(ic); li.appendChild(tx);
+    if (STEPS[i].d){
+      var dd = document.createElement("span"); dd.className = "d"; dd.textContent = STEPS[i].d;
+      li.appendChild(dd);
+    }
+    stepsEl.appendChild(li);
+  }
+})();
+
+function fmtDist(km){
+  if (km < 0.95) return Math.max(0, Math.round(km * 100) * 10) + " m";
+  return (Math.round(km * 10) / 10).toFixed(1) + " km";
+}
+
+var elOdo = document.getElementById("odo");
+var elRem = document.getElementById("rem");
+var elEta = document.getElementById("eta");
+var lastActive = -1;
+
+function updatePanel(){
+  var act = 0, i;
+  for (i = 0; i < STEP_P.length; i++) if (STEP_P[i] <= pf + 1e-9) act = i;
+  if (pf > 0.985) act = STEPS.length - 1;
+  if (act !== lastActive){
+    var items = stepsEl.children;
+    for (var q = 0; q < items.length; q++){
+      items[q].classList.toggle("active", q === act);
+      items[q].classList.toggle("done", q < act);
+    }
+    if (items[act]) items[act].scrollIntoView({ block: "nearest" });
+    lastActive = act;
+  }
+  elOdo.textContent = fmtDist(Math.max(0, loops + pf) * TRIP_KM);
+  elRem.textContent = fmtDist((1 - pf) * TRIP_KM);
+  var mins = Math.max(1, Math.ceil((1 - pf) * TRIP_MIN));
+  elEta.textContent = mins + " min";
+}
+
+function updateScalebar(){
+  var px = Z0 * zoomMul * CL * (50 / BLOCK_M);
+  document.getElementById("scalebar-bar").style.width = Math.round(px) + "px";
+}
+
+/* ---------- toast --------------------------------------------------- */
+var toastEl = document.getElementById("toast");
+var toastTimer = null;
+function toast(title, sub){
+  document.getElementById("toast-title").textContent = title;
+  document.getElementById("toast-sub").textContent = sub;
+  toastEl.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 3200);
+}
+
+/* ---------- trip progression ---------------------------------------- */
+var goBtn = document.getElementById("go");
+
+function advance(dp){
+  pf += dp;
+  while (pf >= 1){
+    pf -= 1;
+    loops += 1;
+    if (navigating){
+      navigating = false;
+      pf = 0;
+      goBtn.textContent = "Start navigation";
+      toast("You have arrived", "1 Meridian Plaza");
+      break;
+    }
+  }
+  while (pf < 0){
+    if (loops <= -4){ pf = 0; break; }
+    pf += 1;
+    loops -= 1;
+  }
+}
+
+/* ---------- input --------------------------------------------------- */
+var hintEl = document.getElementById("hint");
+function hideHint(){ hintEl.classList.add("hide"); }
+
+function setZoom(mul){
+  zoomMul = Math.min(2.6, Math.max(0.55, mul));
+  updateScalebar();
+}
+
+canvas.addEventListener("wheel", function(e){
+  e.preventDefault();
+  setZoom(zoomMul * Math.exp(-e.deltaY * 0.0012));
+  hideHint();
+}, { passive: false });
+
+function panBy(dx, dy){
+  /* screen delta -> conformal delta at the camera */
+  var inv = 1 / (Z0 * zoomMul);
+  var wx = (cam.cR * dx + cam.sR * dy) * inv;
+  var wy = (-cam.sR * dx + cam.cR * dy) * inv;
+  var cX = Math.cos(cam.X), sX = Math.sin(cam.X);
+  var dY = cX * wx + sX * wy;
+  var dX = -sX * wx + cX * wy;
+  panX -= dX; panY -= dY;
+  var lim = 0.62;
+  panX = Math.max(-lim, Math.min(lim, panX));
+  panY = Math.max(-lim, Math.min(lim, panY));
+}
+
+var dragging = false, lastX = 0, lastY = 0, lastPinch = 0;
+canvas.addEventListener("pointerdown", function(e){
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  canvas.classList.add("dragging");
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", function(e){
+  if (!dragging) return;
+  panBy(e.clientX - lastX, e.clientY - lastY);
+  lastX = e.clientX; lastY = e.clientY;
+  hideHint();
+});
+canvas.addEventListener("pointerup", function(){ dragging = false; canvas.classList.remove("dragging"); });
+canvas.addEventListener("pointercancel", function(){ dragging = false; canvas.classList.remove("dragging"); });
+
+canvas.addEventListener("touchmove", function(e){
+  if (e.touches.length === 2){
+    e.preventDefault();
+    dragging = false;
+    var d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if (lastPinch > 0) setZoom(zoomMul * d / lastPinch);
+    lastPinch = d;
+    hideHint();
+  }
+}, { passive: false });
+canvas.addEventListener("touchend", function(){ lastPinch = 0; });
+
+document.getElementById("zin").addEventListener("click", function(){ setZoom(zoomMul * 1.25); hideHint(); });
+document.getElementById("zout").addEventListener("click", function(){ setZoom(zoomMul / 1.25); hideHint(); });
+document.getElementById("compass").addEventListener("click", function(){
+  rotOffset = 0; panX = 0; panY = 0;
+});
+document.getElementById("headup").addEventListener("change", function(e){ headingUp = e.target.checked; });
+
+goBtn.addEventListener("click", function(){
+  navigating = !navigating;
+  goBtn.textContent = navigating ? "Pause" : "Resume navigation";
+  if (!navigating && pf === 0) goBtn.textContent = "Start navigation";
+  if (navigating) hideHint();
+});
+document.getElementById("reset").addEventListener("click", function(){
+  navigating = false;
+  goBtn.textContent = "Start navigation";
+  pf = 0; loops = 0; panX = 0; panY = 0; rotOffset = 0;
+  setZoom(1);
+  lastActive = -1;
+});
+
+window.addEventListener("keydown", function(e){
+  if (e.key === "ArrowUp"){ advance(0.012); hideHint(); }
+  else if (e.key === "ArrowDown"){ advance(-0.012); hideHint(); }
+  else if (e.key === "ArrowLeft"){ rotOffset -= 0.07; }
+  else if (e.key === "ArrowRight"){ rotOffset += 0.07; }
+  else if (e.key === " " && document.activeElement === document.body){ e.preventDefault(); goBtn.click(); }
+});
+
+setTimeout(hideHint, 9000);
+
+/* ---------- main loop ----------------------------------------------- */
+resize();
+function frame(ts){
+  if (!lastFrame) lastFrame = ts;
+  var dt = Math.min(0.05, (ts - lastFrame) / 1000);
+  lastFrame = ts;
+  if (navigating) advance(NAV_RATE * dt);
+  render();
+  updatePanel();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
